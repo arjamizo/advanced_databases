@@ -3,19 +3,24 @@
 <?php
 $db = new PDO('mysql:host=localhost;dbname=sakila;charset=utf8', 'root', '');
 
-if(isset($_REQUEST['fillSchedules'])) {
+$sqlselectprefix=isset($_REQUEST['nocache'])?" SQL_NO_CACHE ":"";
+if(strlen($sqlselectprefix)>0) echo "<b>executing with SQL_NO_CACHE</b><br/>";
+$show=isset($_REQUEST['show'])?$_REQUEST['show']:-1;
+
 $before = microtime(true);
+
+if(isset($_REQUEST['fillSchedules'])) {
 
 	$rooms=isset($_REQUEST['rooms'])?(1*$_REQUEST['rooms']):10;
 	$with=isset($_REQUEST['with'])?$_REQUEST['with']:100;
-	$stmt = $db->exec($q='truncate room_schedule');
+	//$stmt = $db->exec($q='truncate room_schedule');
 	print_r($stmt);
 	$ord="order by rand()";
 	$ord="";
-	$stmt = $db->exec
+	//$stmt = $db->exec
 	($q='
 insert into room_schedule (room_id, start, finish, film_id, language_id, initial_ticket_price, is_3d) (
-select
+select '.$sqlselectprefix.'
     r.id as room_id
     , (NOW()+INTERVAL f.film_id DAY) as start
     , DATE_ADD(CURDATE(),INTERVAL f.film_id DAY)+INTERVAL 5 HOUR as finish
@@ -37,16 +42,14 @@ order by room_id, film_id
 	echo "</pre>";
 	print_r($stmt);
 	echo "filling with $with that many rooms $rooms, which give in total $rooms*$with rows";
-	$after = microtime(true);
-	echo "insertion took ".($after-$before) . "um (10^-6s) \n";
 } elseif(isset($_REQUEST['roomid']) && ($id=(int)$_REQUEST['roomid'])>0) {
 	//if(try_again: cond_validate && updateDB) else if (!cond_validate && goto tryagain);
 	$stmt = $db->query($q='SELECT * FROM room_schedule where room_id='.$id);
 	$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-	ob_start();
-	echo '<pre>';
-	print_r($results);
-	$out=ob_get_clean();
+	//ob_start();
+	//echo '<pre>';
+	//print_r($results);
+	//$out=ob_get_clean();
 	//print $out;
 	//print preg_replace('/(.*\[id\].*?)([0-9]+).*/', '${1}<a href="?scheduleid=${2}">${2}</a>', $out);
 	echo "<table>";
@@ -58,6 +61,7 @@ order by room_id, film_id
 	} catch (Exception $e) {
 	}
 	echo "</tr>";
+	if(0)
 	foreach ($results as $k => $v) {
 		echo "<tr>";
 		foreach ($v as $kk => $vv) {
@@ -96,9 +100,11 @@ and rsch.id='.$id);
 } else {
 	$add='SELECT * FROM room ';
 	if(isset($_REQUEST['getSchedulesCount'])) {
-		$add='SELECT r.*,count(room_schedule.id) FROM room r
-       left join room_schedule as sch on r.id=sch.room_id';
-	   throw new Exception($add);
+		$add='SELECT '.$sqlselectprefix.' r.*
+,(select count(*) from room_schedule as sch where r.id=sch.room_id ) as count
+FROM room r';
+		if($show>0) $add.=" limit ".$show;
+	   //throw new Exception($add);
 	}
 	$stmt = $db->query($add);
 	$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -125,5 +131,7 @@ and rsch.id='.$id);
 	}
 	echo "</table>";
 }
+$after = microtime(true);
+echo "insertion took ".(($after-$before)*1000)." ms = ".($after-$before). "us (10^-6s) \n";
 
 //use $results
