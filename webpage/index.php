@@ -3,7 +3,43 @@
 <?php
 $db = new PDO('mysql:host=localhost;dbname=sakila;charset=utf8', 'root', '');
 
-if(isset($_REQUEST['roomid']) && ($id=(int)$_REQUEST['roomid'])>0) {
+if(isset($_REQUEST['fillSchedules'])) {
+$before = microtime(true);
+
+	$rooms=isset($_REQUEST['rooms'])?(1*$_REQUEST['rooms']):10;
+	$with=isset($_REQUEST['with'])?$_REQUEST['with']:100;
+	$stmt = $db->exec($q='truncate room_schedule');
+	print_r($stmt);
+	$ord="order by rand()";
+	$ord="";
+	$stmt = $db->exec
+	($q='
+insert into room_schedule (room_id, start, finish, film_id, language_id, initial_ticket_price, is_3d) (
+select
+    r.id as room_id
+    , (NOW()+INTERVAL f.film_id DAY) as start
+    , DATE_ADD(CURDATE(),INTERVAL f.film_id DAY)+INTERVAL 5 HOUR as finish
+    , f.film_id as film_id
+    , 6 as language_id
+    , 20 as initial_ticker_price
+    , 0 as is_3d
+from room r
+    join
+        (select id from room $ord limit '.(int)$rooms.') as temp
+        using (id)
+    left join
+        (select film_id from film $ord limit '.(int)$with.') as f
+        on 1=1
+order by room_id, film_id
+)');
+	echo "<pre>";
+	print_r($q);
+	echo "</pre>";
+	print_r($stmt);
+	echo "filling with $with that many rooms $rooms, which give in total $rooms*$with rows";
+	$after = microtime(true);
+	echo "insertion took ".($after-$before) . "um (10^-6s) \n";
+} elseif(isset($_REQUEST['roomid']) && ($id=(int)$_REQUEST['roomid'])>0) {
 	//if(try_again: cond_validate && updateDB) else if (!cond_validate && goto tryagain);
 	$stmt = $db->query($q='SELECT * FROM room_schedule where room_id='.$id);
 	$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
